@@ -27,10 +27,14 @@ export default function NewCandidatePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error('Erreur lors de la création');
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        const message = body?.message ?? `Erreur HTTP ${res.status}`;
+        throw new Error(Array.isArray(message) ? message.join(', ') : message);
+      }
       router.push('/candidates');
-    } catch {
-      alert('Une erreur est survenue. Veuillez réessayer.');
+    } catch (err) {
+      alert(`Une erreur est survenue : ${err instanceof Error ? err.message : 'Veuillez réessayer.'}`);
     }
   };
 

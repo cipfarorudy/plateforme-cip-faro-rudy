@@ -27,7 +27,11 @@ export class CompetencyBlocksService {
   }
 
   async evaluate(blockId: string, dto: EvaluateBlockDto) {
-    const data: any = {
+    // Find existing evaluation or create new one
+    const existing = await this.prisma.blockEvaluation.findFirst({
+      where: { competencyBlockId: blockId, candidateId: dto.candidateId },
+    });
+    const data = {
       competencyBlockId: blockId,
       candidateId: dto.candidateId,
       status: dto.status,
@@ -35,11 +39,10 @@ export class CompetencyBlocksService {
       notes: dto.notes,
       evaluatedAt: new Date(),
     };
-    return this.prisma.blockEvaluation.upsert({
-      where: { id: `${blockId}-${dto.candidateId}` },
-      update: data,
-      create: data,
-    });
+    if (existing) {
+      return this.prisma.blockEvaluation.update({ where: { id: existing.id }, data });
+    }
+    return this.prisma.blockEvaluation.create({ data });
   }
 
   getEvaluations(blockId: string) {
