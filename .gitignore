@@ -10,3 +10,12 @@ venv/
 # Bicep build artifacts (exclude .json files except parameters)
 infra/**/*.json
 !infra/**/main.parameters.json
+
+# Platform – Node.js
+platform/*/node_modules/
+platform/backend/dist/
+platform/frontend/.next/
+platform/frontend/out/
+
+# Platform – env files (use .env.example instead)
+platform/*/.env
