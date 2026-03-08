@@ -1,0 +1,294 @@
+// Prisma schema for C.I.P FARO Rudy training platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum CandidateStatus {
+  PROSPECT
+  INSCRIT
+  EN_FORMATION
+  CERTIFIE
+  ABANDON
+}
+
+enum ContractType {
+  DEVIS
+  CONVENTION
+}
+
+enum ContractStatus {
+  BROUILLON
+  ENVOYE
+  SIGNE
+  ANNULE
+}
+
+enum FormationStatus {
+  PLANIFIEE
+  EN_COURS
+  TERMINEE
+  ANNULEE
+}
+
+enum BlockStatus {
+  NON_COMMENCE
+  EN_COURS
+  VALIDE
+  ECHEC
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  ABSENT_JUSTIFIE
+  RETARD
+}
+
+enum CertificateType {
+  ATTESTATION_ENTREE
+  ATTESTATION_SORTIE
+  CERTIFICAT_COMPETENCE
+  DIPLOME
+}
+
+enum UserRole {
+  ADMIN
+  FORMATEUR
+  CANDIDAT
+  SECRETARIAT
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      UserRole @default(SECRETARIAT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  candidate  Candidate?
+  formations Formation[] @relation("FormateurFormations")
+}
+
+model Candidate {
+  id            String          @id @default(cuid())
+  userId        String?         @unique
+  user          User?           @relation(fields: [userId], references: [id])
+  firstName     String
+  lastName      String
+  email         String          @unique
+  phone         String?
+  birthDate     DateTime?
+  address       String?
+  city          String?
+  postalCode    String?
+  status        CandidateStatus @default(PROSPECT)
+  notes         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  placementTests  PlacementTest[]
+  prerequisites   Prerequisite[]
+  contracts       Contract[]
+  formations      FormationEnrollment[]
+  certificates    Certificate[]
+  surveys         SatisfactionSurvey[]
+}
+
+model PlacementTest {
+  id          String    @id @default(cuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+  date        DateTime  @default(now())
+  score       Float?
+  level       String?
+  results     Json?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Prerequisite {
+  id          String    @id @default(cuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+  name        String
+  description String?
+  validated   Boolean   @default(false)
+  validatedAt DateTime?
+  document    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Contract {
+  id          String         @id @default(cuid())
+  candidateId String
+  candidate   Candidate      @relation(fields: [candidateId], references: [id])
+  type        ContractType
+  status      ContractStatus @default(BROUILLON)
+  reference   String         @unique
+  amount      Float?
+  startDate   DateTime?
+  endDate     DateTime?
+  signedAt    DateTime?
+  document    String?
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Formation {
+  id          String          @id @default(cuid())
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  location    String?
+  status      FormationStatus @default(PLANIFIEE)
+  formateurId String?
+  formateur   User?           @relation("FormateurFormations", fields: [formateurId], references: [id])
+  maxStudents Int             @default(12)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  enrollments     FormationEnrollment[]
+  sessions        Session[]
+  competencyBlocks CompetencyBlock[]
+  ecfEvaluations  ECFEvaluation[]
+}
+
+model FormationEnrollment {
+  id          String    @id @default(cuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+  formationId String
+  formation   Formation @relation(fields: [formationId], references: [id])
+  enrolledAt  DateTime  @default(now())
+  completedAt DateTime?
+  notes       String?
+
+  @@unique([candidateId, formationId])
+}
+
+model Session {
+  id          String    @id @default(cuid())
+  formationId String
+  formation   Formation @relation(fields: [formationId], references: [id])
+  date        DateTime
+  startTime   String
+  endTime     String
+  topic       String?
+  location    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  attendances Attendance[]
+}
+
+model CompetencyBlock {
+  id          String      @id @default(cuid())
+  formationId String
+  formation   Formation   @relation(fields: [formationId], references: [id])
+  code        String      // BC01, BC02, BC03
+  title       String
+  description String?
+  objectives  Json?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  evaluations BlockEvaluation[]
+}
+
+model BlockEvaluation {
+  id               String          @id @default(cuid())
+  competencyBlockId String
+  competencyBlock  CompetencyBlock @relation(fields: [competencyBlockId], references: [id])
+  candidateId      String
+  status           BlockStatus     @default(NON_COMMENCE)
+  score            Float?
+  evaluatedAt      DateTime?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+}
+
+model ECFEvaluation {
+  id          String    @id @default(cuid())
+  formationId String
+  formation   Formation @relation(fields: [formationId], references: [id])
+  candidateId String
+  date        DateTime
+  situation   String
+  result      String?
+  score       Float?
+  passed      Boolean   @default(false)
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Attendance {
+  id          String           @id @default(cuid())
+  sessionId   String
+  session     Session          @relation(fields: [sessionId], references: [id])
+  candidateId String
+  status      AttendanceStatus @default(PRESENT)
+  signedAt    DateTime?
+  comment     String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([sessionId, candidateId])
+}
+
+model Certificate {
+  id          String          @id @default(cuid())
+  candidateId String
+  candidate   Candidate       @relation(fields: [candidateId], references: [id])
+  type        CertificateType
+  reference   String          @unique
+  issuedAt    DateTime        @default(now())
+  validUntil  DateTime?
+  document    String?
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model SatisfactionSurvey {
+  id          String    @id @default(cuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+  formationId String?
+  responses   Json
+  score       Float?
+  completedAt DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model QualiopiIndicator {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  title       String
+  description String?
+  target      Float?
+  current     Float?
+  period      String
+  data        Json?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+}

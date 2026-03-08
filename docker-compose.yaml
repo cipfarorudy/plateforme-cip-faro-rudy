@@ -1,10 +1,60 @@
 services:
+  # ─── Existing Python/Azure app ─────────────────────────────────────────────
   app:
     build:
       context: ./src
     env_file:
       - .env
     ports:
-      - 50505:50505
+      - "50505:50505"
     volumes:
       - ./src:/code
+
+  # ─── C.I.P FARO Rudy Platform ──────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: cip
+      POSTGRES_PASSWORD: cip_password
+      POSTGRES_DB: cip_faro_rudy
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cip"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./platform/backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://cip:cip_password@postgres:5432/cip_faro_rudy?schema=public
+      JWT_SECRET: cip-faro-rudy-secret-change-in-production
+      PORT: 3001
+      FRONTEND_URL: http://localhost:3000
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./platform/backend:/app
+      - /app/node_modules
+
+  frontend:
+    build:
+      context: ./platform/frontend
+      dockerfile: Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
